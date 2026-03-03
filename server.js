@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const { URL } = require("url");
 
 const ROOT = __dirname;
@@ -23,6 +24,69 @@ const MIME_TYPES = {
   ".pdf": "application/pdf",
   ".txt": "text/plain; charset=utf-8"
 };
+
+function commandErrorMessage(error) {
+  const stderr = error && error.stderr ? String(error.stderr).trim() : "";
+  const stdout = error && error.stdout ? String(error.stdout).trim() : "";
+  return stderr || stdout || (error && error.message) || "Unknown command error";
+}
+
+function toRepoRelativePath(filePath) {
+  const relative = path.relative(ROOT, filePath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Cannot stage file outside repository root");
+  }
+  return relative.split(path.sep).join("/");
+}
+
+function sanitizeCommitFragment(value, fallback) {
+  const cleaned = String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/["']/g, "")
+    .trim()
+    .slice(0, 80);
+  return cleaned || fallback;
+}
+
+function commitPaths(filePaths, message) {
+  const repoPaths = [...new Set(filePaths.map((filePath) => toRepoRelativePath(filePath)))];
+  if (repoPaths.length === 0) {
+    throw new Error("No files provided for commit");
+  }
+
+  try {
+    execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: ROOT, stdio: "pipe" });
+  } catch (error) {
+    throw new Error(`Git repository not available: ${commandErrorMessage(error)}`);
+  }
+
+  try {
+    execFileSync("git", ["add", "--", ...repoPaths], { cwd: ROOT, stdio: "pipe" });
+  } catch (error) {
+    throw new Error(`Git add failed: ${commandErrorMessage(error)}`);
+  }
+
+  let stagedFiles = "";
+  try {
+    stagedFiles = execFileSync("git", ["diff", "--cached", "--name-only", "--", ...repoPaths], {
+      cwd: ROOT,
+      stdio: "pipe",
+      encoding: "utf8"
+    }).trim();
+  } catch (error) {
+    throw new Error(`Could not inspect staged changes: ${commandErrorMessage(error)}`);
+  }
+
+  if (!stagedFiles) {
+    return;
+  }
+
+  try {
+    execFileSync("git", ["commit", "-m", message, "--", ...repoPaths], { cwd: ROOT, stdio: "pipe" });
+  } catch (error) {
+    throw new Error(`Git commit failed: ${commandErrorMessage(error)}`);
+  }
+}
 
 function sendJson(res, status, payload) {
   res.writeHead(status, { "Content-Type": MIME_TYPES[".json"] });
@@ -291,6 +355,7 @@ async function handleUploadRequest(req, res) {
 
   const saved = [];
   const rejected = [];
+  const countryName = path.basename(countryDir).toLowerCase();
 
   for (const file of files) {
     const rawName = file && typeof file.name === "string" ? file.name : "";
@@ -320,6 +385,21 @@ async function handleUploadRequest(req, res) {
       const safeName = safeFilename(rawName);
       const destination = makeUniquePath(countryDir, safeName);
       fs.writeFileSync(destination, buffer);
+      const finalName = path.basename(destination);
+      const commitTitle = sanitizeCommitFragment(finalName, "uploaded-file");
+      try {
+        commitPaths([destination], `chore(content): upload ${commitTitle} in ${countryName}`);
+      } catch (error) {
+        try {
+          if (fs.existsSync(destination)) {
+            fs.unlinkSync(destination);
+          }
+        } catch {
+          // Ignore rollback cleanup failures; commit error is reported below.
+        }
+        rejected.push({ name: rawName || "unknown", reason: error.message });
+        continue;
+      }
       saved.push(path.basename(destination));
     } catch {
       rejected.push({ name: rawName || "unknown", reason: "Could not write file" });
@@ -327,7 +407,9 @@ async function handleUploadRequest(req, res) {
   }
 
   if (saved.length === 0) {
-    sendJson(res, 400, { error: "No files were uploaded", rejected });
+    const firstReason = rejected[0] && rejected[0].reason ? rejected[0].reason : "";
+    const errorMessage = firstReason ? `No files were uploaded: ${firstReason}` : "No files were uploaded";
+    sendJson(res, 400, { error: errorMessage, rejected });
     return;
   }
 
@@ -361,18 +443,45 @@ async function handleAddLinksRequest(req, res) {
     return;
   }
 
+  const linksFile = documentLinksPath(countryDir);
+  const countryName = path.basename(countryDir).toLowerCase();
   const current = readDocumentLinks(countryDir);
   const currentByUrl = new Set(current.map((entry) => entry.url));
-  const newEntries = cleaned
-    .filter((url) => !currentByUrl.has(url))
-    .map((url, index) => ({
+  let working = [...current];
+  const failed = [];
+  let saved = 0;
+
+  for (const url of cleaned) {
+    if (currentByUrl.has(url)) {
+      continue;
+    }
+
+    const entry = {
       id: createDocumentId(),
-      name: inferDocumentName(url, current.length + index + 1),
+      name: inferDocumentName(url, working.length + 1),
       url
-    }));
-  const merged = [...current, ...newEntries];
-  writeDocumentLinks(countryDir, merged);
-  sendJson(res, 200, { saved: newEntries.length });
+    };
+    const next = [...working, entry];
+    writeDocumentLinks(countryDir, next);
+
+    const linkName = sanitizeCommitFragment(entry.name, "added-link");
+    try {
+      commitPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
+      working = next;
+      currentByUrl.add(url);
+      saved += 1;
+    } catch (error) {
+      writeDocumentLinks(countryDir, working);
+      failed.push({ url, reason: error.message });
+    }
+  }
+
+  if (saved === 0 && failed.length > 0) {
+    sendJson(res, 500, { error: "No links could be committed", failed });
+    return;
+  }
+
+  sendJson(res, 200, { saved, failed });
 }
 
 async function handleDocumentLinksRequest(req, requestUrl, res) {
@@ -423,6 +532,16 @@ async function handleDocumentLinksRequest(req, requestUrl, res) {
     };
     const merged = [...links, entry];
     writeDocumentLinks(countryDir, merged);
+    const linksFile = documentLinksPath(countryDir);
+    const countryName = path.basename(countryDir).toLowerCase();
+    const linkName = sanitizeCommitFragment(entry.name, "added-link");
+    try {
+      commitPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
+    } catch (error) {
+      writeDocumentLinks(countryDir, links);
+      sendJson(res, 500, { error: error.message });
+      return;
+    }
     sendJson(res, 200, entry);
     return;
   }
