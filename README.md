@@ -4,7 +4,7 @@ Static website for an architectural business with headquarters in:
 - Canada
 - UK
 - Emirates
-- Spain
+- Denmark
 - USA
 - Japan
 

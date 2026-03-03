@@ -2,7 +2,7 @@ const HEADQUARTERS = [
   { id: "canada", label: "Canada", focus: "Urban mixed-use and civic projects." },
   { id: "uk", label: "UK", focus: "Adaptive reuse and heritage-sensitive design." },
   { id: "emirates", label: "Emirates", focus: "High-density innovation districts and towers." },
-  { id: "spain", label: "Spain", focus: "Climate-aware coastal and cultural architecture." },
+  { id: "denmark", label: "Denmark", focus: "Climate-aware coastal and cultural architecture." },
   { id: "usa", label: "USA", focus: "Research-driven sustainable campus architecture." },
   { id: "japan", label: "Japan", focus: "Minimal, compact, and precision-crafted spaces." }
 ];
