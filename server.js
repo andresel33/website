@@ -48,10 +48,10 @@ function sanitizeCommitFragment(value, fallback) {
   return cleaned || fallback;
 }
 
-function commitPaths(filePaths, message) {
+function pushPaths(filePaths, message) {
   const repoPaths = [...new Set(filePaths.map((filePath) => toRepoRelativePath(filePath)))];
   if (repoPaths.length === 0) {
-    throw new Error("No files provided for commit");
+    throw new Error("No files provided for push");
   }
 
   try {
@@ -85,6 +85,12 @@ function commitPaths(filePaths, message) {
     execFileSync("git", ["commit", "-m", message, "--", ...repoPaths], { cwd: ROOT, stdio: "pipe" });
   } catch (error) {
     throw new Error(`Git commit failed: ${commandErrorMessage(error)}`);
+  }
+
+  try {
+    execFileSync("git", ["push"], { cwd: ROOT, stdio: "pipe" });
+  } catch (error) {
+    throw new Error(`Git push failed after local commit: ${commandErrorMessage(error)}`);
   }
 }
 
@@ -388,15 +394,8 @@ async function handleUploadRequest(req, res) {
       const finalName = path.basename(destination);
       const commitTitle = sanitizeCommitFragment(finalName, "uploaded-file");
       try {
-        commitPaths([destination], `chore(content): upload ${commitTitle} in ${countryName}`);
+        pushPaths([destination], `chore(content): upload ${commitTitle} in ${countryName}`);
       } catch (error) {
-        try {
-          if (fs.existsSync(destination)) {
-            fs.unlinkSync(destination);
-          }
-        } catch {
-          // Ignore rollback cleanup failures; commit error is reported below.
-        }
         rejected.push({ name: rawName || "unknown", reason: error.message });
         continue;
       }
@@ -466,12 +465,11 @@ async function handleAddLinksRequest(req, res) {
 
     const linkName = sanitizeCommitFragment(entry.name, "added-link");
     try {
-      commitPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
+      pushPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
       working = next;
       currentByUrl.add(url);
       saved += 1;
     } catch (error) {
-      writeDocumentLinks(countryDir, working);
       failed.push({ url, reason: error.message });
     }
   }
@@ -536,9 +534,8 @@ async function handleDocumentLinksRequest(req, requestUrl, res) {
     const countryName = path.basename(countryDir).toLowerCase();
     const linkName = sanitizeCommitFragment(entry.name, "added-link");
     try {
-      commitPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
+      pushPaths([linksFile], `chore(content): add link ${linkName} in ${countryName}`);
     } catch (error) {
-      writeDocumentLinks(countryDir, links);
       sendJson(res, 500, { error: error.message });
       return;
     }
