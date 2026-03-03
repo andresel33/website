@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arq Nova | Global Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <div class="brand">ARQ NOVA</div>
+      <div class="nav-menu">
+        <a class="nav-link" href="#headquarters">Headquarters</a>
+        <a class="nav-link" href="#faq">FAQ</a>
+        <a class="nav-link" href="#contact">Contact</a>
+      </div>
+    </nav>
+    <div class="hero-content">
+      <p class="kicker">Global Architecture Studio</p>
+      <h1>Main Headquarters Portal</h1>
+      <p class="hero-text">Choose a headquarters location to view local architecture images and documents. Use FAQ for quick help, and Contact for support.</p>
+    </div>
+  </header>
+
+  <main>
+    <section id="headquarters" class="section">
+      <h2>Headquarters</h2>
+      <p class="section-intro">Pick one of the 6 headquarters options below. The rest of this section loads related documents.</p>
+      <div id="country-tabs" class="country-tabs" aria-label="Headquarters options"></div>
+      <div id="status" class="status" aria-live="polite"></div>
+      <details id="upload-spoiler" class="upload-spoiler">
+        <summary>Upload / Add Documents (Password Protected)</summary>
+        <div class="upload-panel">
+          <h3>Add New Headquarters Content</h3>
+          <div class="upload-grid">
+            <div class="upload-block">
+              <label for="upload-files">Upload files (PNG, JPG, JPEG, PDF, TXT)</label>
+              <input id="upload-files" type="file" multiple accept=".png,.jpg,.jpeg,.pdf,.txt">
+              <button id="upload-files-btn" class="action-btn" type="button">Upload Files</button>
+            </div>
+            <div class="upload-block">
+              <label for="upload-link-name">Document Name</label>
+              <input id="upload-link-name" type="text" placeholder="Example: Market Strategy UK">
+              <label for="upload-link-url">Document Link</label>
+              <input id="upload-link-url" type="url" placeholder="https://docs.google.com/document/...">
+              <button id="upload-link-btn" class="action-btn" type="button">Add Named Link</button>
+            </div>
+          </div>
+        </div>
+      </details>
+      <div class="documents-area">
+        <div id="gallery" class="gallery"></div>
+        <div id="doc-embed" class="doc-embed"></div>
+      </div>
+    </section>
+
+    <section id="faq" class="section faq">
+      <h2>FAQ</h2>
+      <article class="faq-item">
+        <h3>How do I open headquarters documents?</h3>
+        <p>Select a headquarters option at the top of the page. Documents and images appear automatically below.</p>
+      </article>
+      <article class="faq-item">
+        <h3>Can I open full documents in a new tab?</h3>
+        <p>Yes. Use the "Open document" link in each document card to view the full source.</p>
+      </article>
+      <article class="faq-item">
+        <h3>What if a headquarters folder is missing?</h3>
+        <p>The page will show a clear status message if the selected headquarters folder is not available.</p>
+      </article>
+    </section>
+
+    <section id="contact" class="section contact">
+      <h2>Contact</h2>
+      <div class="contact-card">
+        <p><strong>Email:</strong> hello@arqnova.com</p>
+        <p><strong>Phone:</strong> +1 (555) 210-3020</p>
+        <p><strong>Support hours:</strong> Monday to Friday, 09:00-18:00 (UTC)</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
